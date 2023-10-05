@@ -1,13 +1,27 @@
 const express = require('express');
 const app = express();
+const dotenv = require('dotenv').config();
 const port = 5500
+const jwt = require('jsonwebtoken');
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+const authenticateJWT = (req, res, next) => {
+    const token = req.header('Authorization');
+    if (!token) return res.status(401).json({ message: 'Authentication required' });
+  
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+      if (err) return res.status(403).json({ message: 'Invalid token' });
+      req.user = user;
+      next();
+    });
+  };
 
 const books = [];
 
 // store book
-app.post("/books",(req, res)=>{
+app.post("/books",authenticateJWT,(req, res)=>{
     const { title, author, publishedDate } = req.body;
     const id = books.length + 1;
     const newBook = { id, title, author, publishedDate };
@@ -16,13 +30,13 @@ app.post("/books",(req, res)=>{
 })
 
 // lists books
-app.get('/books', (req, res) => {
+app.get('/books', authenticateJWT,(req, res) => {
   res.json(books);
 });
 
 
 // Read book by id
-app.get('/books/:id', (req, res) => {
+app.get('/books/:id',authenticateJWT, (req, res) => {
   const id = parseInt(req.params.id);
   const book = books.find((b) => b.id === id);
   if (book) {
@@ -34,7 +48,7 @@ app.get('/books/:id', (req, res) => {
 
 
 // Update  book by id
-app.put('/books/:id', (req, res) => {
+app.put('/books/:id',authenticateJWT, (req, res) => {
   const id = parseInt(req.params.id);
   const { title, author, publishedDate } = req.body;
   const bookIndex = books.findIndex((b) => b.id === id);
@@ -47,17 +61,23 @@ app.put('/books/:id', (req, res) => {
 });
 
 // Delete book by id
-app.delete('/books/:id', (req, res) => {
+app.delete('/books/:id',authenticateJWT, (req, res) => {
   const id = parseInt(req.params.id);
   const bookIndex = books.findIndex((b) => b.id === id);
   if (bookIndex !== -1) {
     const deletedBook = books.splice(bookIndex, 1);
     res.json(deletedBook[0]);
-  } else {
+  } else { 
     res.status(404).json({ message: 'Book not found' });
   }
 });
 
 
+app.post('/login', (req, res) => {
+    console.log(req.body);
+    const { username } = req.body;
+    const token = jwt.sign({ username }, process.env.ACCESS_TOKEN_SECRET);
+    res.json({ token });
+  });
 
 app.listen(port, ()=>{console.log('server connect');})
